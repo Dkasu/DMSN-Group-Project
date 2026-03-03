@@ -1,0 +1,27 @@
+ENRON TASK 1 REVISED SUMMARY
+===========================
+
+Full directed graph:
+Nodes: 36692
+Edges: 367662
+
+Full undirected graph:
+Nodes: 36692
+Edges: 183831
+
+Reciprocity check on directed graph:
+Reciprocated directed edges: 367662
+Total directed edges: 367662
+Reciprocity ratio: 1.000000
+
+Filtering setup:
+Undirected degree threshold: 10
+Filtered undirected nodes: 6365
+Filtered undirected edges: 109646
+
+Analysis graph (after optional largest connected component step):
+Nodes: 6328
+Edges: 109608
+
+Task 1 metric:
+Average clustering coefficient: 0.43843289107338407
