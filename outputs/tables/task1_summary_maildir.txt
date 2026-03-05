@@ -1,0 +1,25 @@
+RAW MAILDIR TASK 1 SUMMARY
+==========================
+
+Data extraction:
+Sent-folder files scanned: 126601
+Valid messages used: 125854
+Unique directed sender->recipient edges: 36829
+Total counted interactions (sum of weights): 275062
+
+Full directed graph:
+Nodes: 17265
+Edges: 36829
+
+Filtering:
+Total-degree threshold: 10
+Filtered nodes: 647
+Filtered edges: 9380
+
+Analysis graph:
+Nodes: 646
+Edges: 9380
+
+Task 1 metric:
+Average clustering coefficient (undirected projection):
+0.4168662674455206
