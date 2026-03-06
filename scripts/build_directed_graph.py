@@ -25,6 +25,16 @@ SENT_FOLDER_NAMES = {
     "sent mail",
 }
 
+# PURPOSE: restrict the network to internal Enron email addresses.
+# WHAT IT IS DOING: removes external recipients who may never appear as senders in your sent-folder extraction.
+RESTRICT_TO_INTERNAL_ENRON = True
+ENRON_DOMAIN = "@enron.com"
+
+# PURPOSE: restrict the node set to "active communicators" to avoid out-degree median = 0.
+# WHAT IT IS DOING: removes recipient-only nodes created by sent-folder-only extraction.
+REQUIRE_OUT_DEGREE_GT0 = True
+REQUIRE_IN_DEGREE_GT0 = False  # set True if you want nodes that both send AND receive
+
 # PURPOSE: decide whether copied recipients should count as communication ties.
 # WHAT IT IS DOING: includes CC/BCC recipients as additional directed edges if present.
 INCLUDE_CC = True
@@ -32,7 +42,7 @@ INCLUDE_BCC = True
 
 # PURPOSE: choose the first activity threshold to test on the directed graph.
 # WHAT IT IS DOING: removes very low-activity nodes using in_degree + out_degree.
-DEGREE_THRESHOLD = 10
+DEGREE_THRESHOLD = 5
 
 # PURPOSE: decide whether to keep only the largest weakly connected component.
 # WHAT IT IS DOING: makes path-based metrics and Gephi visuals easier to interpret.
@@ -49,6 +59,12 @@ MAX_FILES = None  # e.g. set to 500 for a quick test
 # PURPOSE: parse headers only, not the full body.
 # WHAT IT IS DOING: makes the script much faster and avoids unnecessary work.
 HEADER_PARSER = BytesHeaderParser(policy=policy.default)
+
+
+def is_enron(addr: str) -> bool:
+    # PURPOSE: detect internal Enron addresses.
+    # WHAT IT IS DOING: supports internal-only filtering on nodes/edges.
+    return addr.endswith(ENRON_DOMAIN)
 
 
 def normalise_email(value: Optional[str]) -> Optional[str]:
@@ -86,6 +102,9 @@ def extract_recipients(msg) -> List[str]:
         addr = addr.strip().lower()
 
         if "@" not in addr:
+            continue
+
+        if RESTRICT_TO_INTERNAL_ENRON and not is_enron(addr):
             continue
 
         if addr in seen:
@@ -133,6 +152,9 @@ def build_edge_counter(maildir_root: Path) -> Tuple[Counter, int, int]:
         if not sender:
             continue
 
+        if RESTRICT_TO_INTERNAL_ENRON and not is_enron(sender):
+            continue
+
         recipients = extract_recipients(msg)
         if not recipients:
             continue
@@ -165,6 +187,19 @@ def build_weighted_directed_graph(edge_counter: Counter) -> nx.DiGraph:
     return G
 
 
+def filter_active_nodes(G: nx.DiGraph) -> nx.DiGraph:
+    # PURPOSE: remove recipient-only and/or sender-only nodes based on configuration.
+    # WHAT IT IS DOING: ensures your degree distributions reflect active communicators.
+    keep = []
+    for n in G.nodes():
+        if REQUIRE_OUT_DEGREE_GT0 and G.out_degree(n) == 0:
+            continue
+        if REQUIRE_IN_DEGREE_GT0 and G.in_degree(n) == 0:
+            continue
+        keep.append(n)
+    return G.subgraph(keep).copy()
+
+
 def filter_by_total_degree(G: nx.DiGraph, min_total_degree: int) -> nx.DiGraph:
     # PURPOSE: remove low-activity nodes.
     # WHAT IT IS DOING: keeps nodes whose in-degree + out-degree meets the threshold.
@@ -172,7 +207,6 @@ def filter_by_total_degree(G: nx.DiGraph, min_total_degree: int) -> nx.DiGraph:
         node for node in G.nodes()
         if (G.in_degree(node) + G.out_degree(node)) >= min_total_degree
     ]
-
     return G.subgraph(keep_nodes).copy()
 
 
@@ -201,7 +235,7 @@ def save_edge_list_csv(edge_counter: Counter, output_file: Path) -> None:
 
 def save_degree_table(G: nx.DiGraph, output_file: Path) -> None:
     # PURPOSE: save node-level degree and strength values.
-    # WHAT IT IS DOING: creates a CSV for Task 1 tables and degree plots.
+    # WHAT IT IS DOING: creates a CSV for Task 1 tables and degree/strength plots.
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     with output_file.open("w", newline="", encoding="utf-8") as f:
@@ -255,7 +289,8 @@ def save_summary_txt(
     sent_folder_files_seen: int,
     valid_messages_used: int,
     edge_counter: Counter,
-    G_full: nx.DiGraph,
+    G_full_before_active: nx.DiGraph,
+    G_full_after_active: nx.DiGraph,
     G_filtered: nx.DiGraph,
     G_analysis: nx.DiGraph,
     avg_clustering: float,
@@ -266,18 +301,24 @@ def save_summary_txt(
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     with output_file.open("w", encoding="utf-8") as f:
-        f.write("RAW MAILDIR TASK 1 SUMMARY\n")
-        f.write("==========================\n\n")
+        f.write("RAW MAILDIR TASK 1 SUMMARY (INTERNAL + ACTIVE)\n")
+        f.write("=============================================\n\n")
 
         f.write("Data extraction:\n")
         f.write(f"Sent-folder files scanned: {sent_folder_files_seen}\n")
         f.write(f"Valid messages used: {valid_messages_used}\n")
+        f.write(f"Internal-only filter enabled: {RESTRICT_TO_INTERNAL_ENRON} ({ENRON_DOMAIN})\n")
+        f.write(f"Active-node filter: require_out>0={REQUIRE_OUT_DEGREE_GT0}, require_in>0={REQUIRE_IN_DEGREE_GT0}\n")
         f.write(f"Unique directed sender->recipient edges: {len(edge_counter)}\n")
         f.write(f"Total counted interactions (sum of weights): {sum(edge_counter.values())}\n\n")
 
-        f.write("Full directed graph:\n")
-        f.write(f"Nodes: {G_full.number_of_nodes()}\n")
-        f.write(f"Edges: {G_full.number_of_edges()}\n\n")
+        f.write("Full directed graph (before active-node filter):\n")
+        f.write(f"Nodes: {G_full_before_active.number_of_nodes()}\n")
+        f.write(f"Edges: {G_full_before_active.number_of_edges()}\n\n")
+
+        f.write("Full directed graph (after active-node filter):\n")
+        f.write(f"Nodes: {G_full_after_active.number_of_nodes()}\n")
+        f.write(f"Edges: {G_full_after_active.number_of_edges()}\n\n")
 
         f.write("Filtering:\n")
         f.write(f"Total-degree threshold: {DEGREE_THRESHOLD}\n")
@@ -294,9 +335,9 @@ def save_summary_txt(
 
 
 if __name__ == "__main__":
-    # PURPOSE: run the full raw-maildir Task 1 pipeline.
-    # WHAT IT IS DOING: parses emails, builds the directed graph, filters it,
-    # computes Task 1 metrics, and saves files for Gephi and analysis.
+    # PURPOSE: run the full raw-maildir Task 1 pipeline with internal+active filtering.
+    # WHAT IT IS DOING: parses emails, builds the directed graph, applies internal+active filters,
+    # applies degree filtering, computes Task 1 metrics, and saves outputs for Gephi and plots.
 
     if not MAILDIR_ROOT.exists():
         raise SystemExit(
@@ -310,6 +351,7 @@ if __name__ == "__main__":
     print("Finished parsing raw maildir.")
     print("Sent-folder files scanned:", sent_folder_files_seen)
     print("Valid messages used:", valid_messages_used)
+    print("Internal-only filter:", RESTRICT_TO_INTERNAL_ENRON, ENRON_DOMAIN)
     print("Unique directed edges:", len(edge_counter))
     print("Total counted interactions:", sum(edge_counter.values()))
 
@@ -320,17 +362,25 @@ if __name__ == "__main__":
 
     # Step 3: Build the full weighted directed graph.
     G_full = build_weighted_directed_graph(edge_counter)
-    print("\nBuilt full directed graph.")
+    print("\nBuilt full directed graph (internal-only edges already applied during parsing).")
     print("Full nodes:", G_full.number_of_nodes())
     print("Full edges:", G_full.number_of_edges())
 
-    # Step 4: Filter low-activity nodes using total degree.
-    G_filtered = filter_by_total_degree(G_full, DEGREE_THRESHOLD)
+    # Step 4: Apply active-node filter to remove out=0 (and optionally in=0) nodes.
+    G_full_before_active = G_full
+    G_full_after_active = filter_active_nodes(G_full_before_active)
+    print("\nAfter active-node filter:")
+    print("Active nodes:", G_full_after_active.number_of_nodes())
+    print("Active edges:", G_full_after_active.number_of_edges())
+    print("Require out>0:", REQUIRE_OUT_DEGREE_GT0, "| Require in>0:", REQUIRE_IN_DEGREE_GT0)
+
+    # Step 5: Filter low-activity nodes using total degree.
+    G_filtered = filter_by_total_degree(G_full_after_active, DEGREE_THRESHOLD)
     print("\nAfter total-degree filtering:")
     print("Filtered nodes:", G_filtered.number_of_nodes())
     print("Filtered edges:", G_filtered.number_of_edges())
 
-    # Step 5: Optionally keep only the largest weakly connected component.
+    # Step 6: Optionally keep only the largest weakly connected component.
     if KEEP_LARGEST_WEAK_COMPONENT:
         G_analysis = keep_largest_weak_component(G_filtered)
         print("\nAfter keeping largest weakly connected component:")
@@ -339,10 +389,10 @@ if __name__ == "__main__":
     else:
         G_analysis = G_filtered
 
-    # Step 6: Build the undirected projection for clustering and cleaner Gephi visuals.
+    # Step 7: Build the undirected projection for clustering and cleaner Gephi visuals.
     G_analysis_undirected = G_analysis.to_undirected()
 
-    # Step 7: Export graphs for Gephi.
+    # Step 8: Export graphs for Gephi.
     graph_dir = Path("outputs/graphs")
     graph_dir.mkdir(parents=True, exist_ok=True)
 
@@ -355,20 +405,18 @@ if __name__ == "__main__":
     print(f"\nSaved directed Gephi graph to: {directed_gexf}")
     print(f"Saved undirected Gephi graph to: {undirected_gexf}")
 
-    # Step 8: Save the degree/strength table.
+    # Step 9: Save the degree/strength table.
     degree_table_output = Path("outputs/tables/degree_table_maildir.csv")
     save_degree_table(G_analysis, degree_table_output)
     print(f"Saved degree table to: {degree_table_output}")
 
-    # Step 9: Compute average clustering on the undirected projection.
+    # Step 10: Compute average clustering on the undirected projection.
     avg_clustering = nx.average_clustering(G_analysis_undirected)
     print("\nAverage clustering coefficient (undirected projection):", avg_clustering)
 
-    # Step 10: Compute betweenness centrality on the directed graph topology.
-    # NOTE:
+    # Step 11: Compute betweenness centrality on the directed graph topology.
     # PURPOSE: rank structurally important bridge-like nodes.
-    # WHAT IT IS DOING: uses the directed graph but ignores 'weight' as distance,
-    # because larger email counts should not be treated as longer paths.
+    # WHAT IT IS DOING: computes betweenness using unweighted shortest paths (weight is frequency, not distance).
     print("\nComputing betweenness centrality...")
     if BETWEENNESS_SAMPLE_K is None:
         betweenness = nx.betweenness_centrality(G_analysis, normalized=True, weight=None)
@@ -385,20 +433,21 @@ if __name__ == "__main__":
     save_top_metric_csv(betweenness, betweenness_output, "betweenness", top_n=20)
     print(f"Saved top betweenness nodes to: {betweenness_output}")
 
-    # Step 11: Compute closeness centrality on the directed graph.
+    # Step 12: Compute closeness centrality on the directed graph.
     print("Computing closeness centrality...")
     closeness = nx.closeness_centrality(G_analysis)
     closeness_output = Path("outputs/tables/top_closeness_maildir.csv")
     save_top_metric_csv(closeness, closeness_output, "closeness", top_n=20)
     print(f"Saved top closeness nodes to: {closeness_output}")
 
-    # Step 12: Save a summary text file.
+    # Step 13: Save a summary text file.
     summary_output = Path("outputs/tables/task1_summary_maildir.txt")
     save_summary_txt(
         sent_folder_files_seen=sent_folder_files_seen,
         valid_messages_used=valid_messages_used,
         edge_counter=edge_counter,
-        G_full=G_full,
+        G_full_before_active=G_full_before_active,
+        G_full_after_active=G_full_after_active,
         G_filtered=G_filtered,
         G_analysis=G_analysis,
         avg_clustering=avg_clustering,
