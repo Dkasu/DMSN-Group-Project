@@ -1,0 +1,26 @@
+TASK 1 REDO SUMMARY (EDGE-LIST VERSION)
+======================================
+
+Dataset choice:
+Using email-Enron.txt only
+No weights available in the provided file
+
+Full directed graph:
+Nodes: 36692
+Edges: 367662
+
+Filtering:
+Total degree threshold: 12
+Filtered nodes: 10936
+Filtered edges: 267808
+
+Analysis graph:
+Directed nodes: 10812
+Directed edges: 267392
+Undirected edges: 133696
+
+Task 1 metric:
+Average clustering coefficient (undirected projection): 0.5531927212612238
+
+Interpretation note:
+The supplied edge-list behaves like reciprocated communication links, so in-degree and out-degree distributions are effectively identical in this dataset.
