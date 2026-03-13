@@ -3,50 +3,35 @@ from collections import Counter
 import csv
 
 import matplotlib
-matplotlib.use("Agg")  # PURPOSE: save plots without opening a GUI window.
-# WHAT IT IS DOING: makes matplotlib work cleanly when running from terminal.
+matplotlib.use("Agg")  # save plots without opening a GUI window.
 import matplotlib.pyplot as plt
 import networkx as nx
 
 
-# =========================
-# CONFIG
-# =========================
 
-# PURPOSE: point to the provided Enron edge-list file.
-# WHAT IT IS DOING: tells the script where to read the network from.
 EDGE_FILE = Path("data/email-Enron.txt")
 
-# PURPOSE: choose a threshold that gives a graph around 10,000 nodes.
-# WHAT IT IS DOING: keeps only nodes with total directed degree >= 12.
-# NOTE: in this dataset, the edge list behaves like mirrored directed pairs,
-# so threshold 12 produced ~10.8k nodes in our earlier run.
+# keep  only nodes with total directed degree >= 12
+
 TOTAL_DEGREE_THRESHOLD = 12
 
-# PURPOSE: decide whether to keep only the largest weakly connected component.
-# WHAT IT IS DOING: removes tiny disconnected pieces so path-based metrics make more sense.
+# remove small disconnected pieces so path-based metrics make more sense
 KEEP_LARGEST_WEAK_COMPONENT = True
 
-# PURPOSE: make betweenness feasible on a ~10k-node graph.
-# WHAT IT IS DOING: uses sampled betweenness instead of exact betweenness.
+# uses sampled betweenness instead of exact betweenness - makes betweenness centrality calculation much faster while still giving a good approximation of the top nodes
 BETWEENNESS_SAMPLE_K = 200
 
-# PURPOSE: choose how many top nodes to save for centrality outputs.
-# WHAT IT IS DOING: keeps result tables concise and presentation-friendly.
+# choose how many top nodes to save for centrality outputs.
 TOP_N = 20
 
-# PURPOSE: choose where all Task 1 outputs will be saved.
-# WHAT IT IS DOING: keeps the outputs grouped in one folder.
+
 OUTPUT_DIR = Path("outputs/task1_edge_list_10000")
 
 
-# =========================
-# HELPERS
-# =========================
 
 def load_directed_graph(edge_file: Path) -> nx.DiGraph:
-    # PURPOSE: load the Enron edge-list file into a directed graph.
-    # WHAT IT IS DOING: reads source-target pairs and skips comment/header lines.
+    # load the Enron edge-list file into a directed graph.
+    # reads edge pairs and skips comment/header lines.
     G = nx.DiGraph()
 
     with edge_file.open("r", encoding="utf-8") as f:
@@ -72,8 +57,8 @@ def load_directed_graph(edge_file: Path) -> nx.DiGraph:
 
 
 def print_threshold_scan(G: nx.DiGraph, thresholds=range(10, 16)) -> None:
-    # PURPOSE: let you quickly see which threshold gives a graph closest to 10,000 nodes.
-    # WHAT IT IS DOING: prints node/edge counts for a small range of degree thresholds.
+    # see which threshold gives a graph closest to 10,000 nodes
+    # prints node/edge counts for a small range of degree thresholds
     print("\nThreshold scan:")
     for t in thresholds:
         keep_nodes = [
@@ -85,8 +70,8 @@ def print_threshold_scan(G: nx.DiGraph, thresholds=range(10, 16)) -> None:
 
 
 def filter_by_total_degree(G: nx.DiGraph, min_total_degree: int) -> nx.DiGraph:
-    # PURPOSE: create the ~10k-node analysis subgraph.
-    # WHAT IT IS DOING: keeps only nodes whose in-degree + out-degree meets the threshold.
+    # create the node analysis subgraph.
+    # keeps only nodes that have in degree + out degree that meets threshold the threshold
     keep_nodes = [
         node for node in G.nodes()
         if (G.in_degree(node) + G.out_degree(node)) >= min_total_degree
@@ -95,8 +80,8 @@ def filter_by_total_degree(G: nx.DiGraph, min_total_degree: int) -> nx.DiGraph:
 
 
 def keep_largest_weak_component(G: nx.DiGraph) -> nx.DiGraph:
-    # PURPOSE: remove tiny disconnected fragments.
-    # WHAT IT IS DOING: keeps only the largest weakly connected component.
+    # remove small disconnected fragments
+    # keeps only the largest weakly connected component
     if G.number_of_nodes() == 0:
         return G.copy()
 
@@ -105,8 +90,8 @@ def keep_largest_weak_component(G: nx.DiGraph) -> nx.DiGraph:
 
 
 def degree_frequency(values):
-    # PURPOSE: turn a list of degrees into a frequency distribution.
-    # WHAT IT IS DOING: counts how many nodes have each degree value.
+    # turn a list of degrees into a frequency distribution
+    # counts how many nodes have each degree value
     counts = Counter(values)
     x = sorted(counts.keys())
     y = [counts[v] for v in x]
@@ -114,12 +99,12 @@ def degree_frequency(values):
 
 
 def save_loglog_distribution(values, title: str, xlabel: str, output_file: Path) -> None:
-    # PURPOSE: create a log-log degree distribution plot.
-    # WHAT IT IS DOING: visualises whether the distribution is heavy-tailed.
+    # create a log-log degree distribution plot.
+    # visualises whether the distribution is heavy-tailed.
     x, y = degree_frequency(values)
 
-    # PURPOSE: remove zeros to avoid log-scale issues.
-    # WHAT IT IS DOING: keeps only positive x and y values.
+    # remove zeros to avoid log-scale issues.
+    # keeps only positive x and y values.
     xy = [(a, b) for a, b in zip(x, y) if a > 0 and b > 0]
     if not xy:
         return
@@ -138,8 +123,8 @@ def save_loglog_distribution(values, title: str, xlabel: str, output_file: Path)
 
 
 def save_histogram(values, title: str, xlabel: str, output_file: Path, bins: int = 30) -> None:
-    # PURPOSE: create a slide-friendly histogram.
-    # WHAT IT IS DOING: shows the spread of degree values with a log y-axis.
+    # create a slide-friendly histogram.
+    # shows the spread of degree values with a log y-axis.
     plt.figure(figsize=(8, 5))
     plt.hist(values, bins=bins)
     plt.yscale("log")
@@ -153,8 +138,8 @@ def save_histogram(values, title: str, xlabel: str, output_file: Path, bins: int
 
 
 def save_degree_table(G_directed: nx.DiGraph, G_undirected: nx.Graph, output_file: Path) -> None:
-    # PURPOSE: save all node-level degree information in one CSV.
-    # WHAT IT IS DOING: gives you a reusable table for plots, checks, and reporting.
+    # save all node-level degree information in one CSV.
+    # gives you a reusable table for plots, checks, and reporting.
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     with output_file.open("w", newline="", encoding="utf-8") as f:
@@ -177,8 +162,8 @@ def save_degree_table(G_directed: nx.DiGraph, G_undirected: nx.Graph, output_fil
 
 
 def save_top_metric_csv(metric_dict: dict, output_file: Path, metric_name: str, top_n: int = 20) -> None:
-    # PURPOSE: save the highest-ranked nodes for one metric.
-    # WHAT IT IS DOING: writes the top centrality results to CSV.
+    # save the highest-ranked nodes for one metric.
+    # writes the top centrality results to CSV.
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     ranked = sorted(metric_dict.items(), key=lambda x: x[1], reverse=True)[:top_n]
@@ -199,8 +184,8 @@ def save_summary(
     avg_clustering: float,
     output_file: Path
 ) -> None:
-    # PURPOSE: save the key Task 1 numbers in one place.
-    # WHAT IT IS DOING: creates a short summary file for slides/report notes.
+    # save the key Task 1 numbers in one place.
+    # creates a short summary file for slides/report notes.
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     with output_file.open("w", encoding="utf-8") as f:
@@ -235,13 +220,10 @@ def save_summary(
         )
 
 
-# =========================
-# MAIN
-# =========================
 
 if __name__ == "__main__":
-    # PURPOSE: make sure the output folders exist before saving files.
-    # WHAT IT IS DOING: creates a stable place for tables, figures, and graph exports.
+    # make sure the output folders exist before saving files.
+    # creates a stable place for tables, figures, and graph exports.
     tables_dir = OUTPUT_DIR / "tables"
     figures_dir = OUTPUT_DIR / "figures"
     graphs_dir = OUTPUT_DIR / "graphs"
@@ -257,22 +239,22 @@ if __name__ == "__main__":
         )
 
     # Step 1: Load the full directed graph from the edge-list file.
-    # PURPOSE: start from the provided dataset exactly as instructed.
-    # WHAT IT IS DOING: reads the whole Enron edge-list into memory.
+    # start from the provided dataset exactly as instructed.
+    # reads the whole Enron edge-list into memory.
     G_full = load_directed_graph(EDGE_FILE)
 
     print("Loaded full directed graph.")
     print("Full nodes:", G_full.number_of_nodes())
     print("Full edges:", G_full.number_of_edges())
 
-    # Optional helper:
-    # PURPOSE: help you retune the threshold if you want closer to exactly 10,000 nodes.
-    # WHAT IT IS DOING: prints node counts for nearby thresholds.
+
+    # helps edit the threshold to get closer to exactly 10,000 nodes
+    # prints node counts for nearby thresholds
     print_threshold_scan(G_full, thresholds=range(10, 16))
 
     # Step 2: Filter to the target ~10k-node subgraph.
-    # PURPOSE: follow the updated instruction to work with around 10,000 nodes.
-    # WHAT IT IS DOING: removes low-degree nodes using the chosen threshold.
+    # follow the updated instruction to work with around 10,000 nodes.
+    # removes low-degree nodes using the chosen threshold.
     G_filtered = filter_by_total_degree(G_full, TOTAL_DEGREE_THRESHOLD)
 
     print("\nAfter total-degree filtering:")
@@ -280,8 +262,8 @@ if __name__ == "__main__":
     print("Filtered edges:", G_filtered.number_of_edges())
 
     # Step 3: Keep only the largest weakly connected component if requested.
-    # PURPOSE: make path-based metrics and Gephi visuals cleaner.
-    # WHAT IT IS DOING: removes tiny disconnected fragments.
+    # make path-based metrics and Gephi visuals cleaner.
+    # removes tiny disconnected fragments.
     if KEEP_LARGEST_WEAK_COMPONENT:
         G_analysis = keep_largest_weak_component(G_filtered)
     else:
@@ -292,22 +274,22 @@ if __name__ == "__main__":
     print("Analysis edges:", G_analysis.number_of_edges())
 
     # Step 4: Build the undirected projection.
-    # PURPOSE: compute clustering and make a clearer Gephi visual.
-    # WHAT IT IS DOING: collapses mirrored directed pairs into undirected links.
+    # compute clustering and make a clearer Gephi visual.
+    # collapses mirrored directed pairs into undirected links.
     G_analysis_undirected = G_analysis.to_undirected()
 
     print("Undirected edges:", G_analysis_undirected.number_of_edges())
 
     # Step 5: Save degree table for plots/reporting.
-    # PURPOSE: keep all degree values in a reusable CSV.
-    # WHAT IT IS DOING: writes in-degree, out-degree, total degree, and undirected degree.
+    # keep all degree values in a reusable CSV.
+    # writes in-degree, out-degree, total degree, and undirected degree.
     degree_table = tables_dir / "degree_table_10000.csv"
     save_degree_table(G_analysis, G_analysis_undirected, degree_table)
     print("Saved degree table to:", degree_table)
 
     # Step 6: Create Task 1 degree plots.
-    # PURPOSE: generate the required in-degree and out-degree distributions.
-    # WHAT IT IS DOING: saves both histogram and log-log views.
+    # generate the required in-degree and out-degree distributions.
+    # saves both histogram and log-log views.
     in_degrees = [G_analysis.in_degree(n) for n in G_analysis.nodes()]
     out_degrees = [G_analysis.out_degree(n) for n in G_analysis.nodes()]
 
@@ -342,14 +324,14 @@ if __name__ == "__main__":
     print("Saved Task 1 plots to:", figures_dir)
 
     # Step 7: Compute average clustering coefficient.
-    # PURPOSE: report one of the required Task 1 statistics.
-    # WHAT IT IS DOING: measures local triangle/team structure in the undirected projection.
+    # report one of the required Task 1 statistics.
+    # measures local triangle/team structure in the undirected projection.
     avg_clustering = nx.average_clustering(G_analysis_undirected)
     print("\nAverage clustering coefficient:", avg_clustering)
 
     # Step 8: Compute betweenness centrality (sampled).
-    # PURPOSE: identify bridge-like / connector nodes on a large graph.
-    # WHAT IT IS DOING: approximates betweenness so runtime stays manageable.
+    # identify bridge-like / connector nodes on a large graph.
+    # approximates betweenness so runtime stays manageable.
     print("\nComputing betweenness centrality (sampled)...")
     k = min(BETWEENNESS_SAMPLE_K, G_analysis_undirected.number_of_nodes())
     betweenness = nx.betweenness_centrality(
@@ -365,8 +347,8 @@ if __name__ == "__main__":
     print("Saved top betweenness to:", betweenness_csv)
 
     # Step 9: Compute closeness centrality.
-    # PURPOSE: identify well-positioned / centrally reachable nodes.
-    # WHAT IT IS DOING: computes closeness on the undirected analysis graph.
+    # identify well-positioned / centrally reachable nodes.
+    # computes closeness on the undirected analysis graph.
     print("Computing closeness centrality...")
     closeness = nx.closeness_centrality(G_analysis_undirected)
 
@@ -375,8 +357,8 @@ if __name__ == "__main__":
     print("Saved top closeness to:", closeness_csv)
 
     # Step 10: Export graphs for Gephi.
-    # PURPOSE: let you rebuild the visualisation on the 10k-node version.
-    # WHAT IT IS DOING: saves both directed and undirected GEXF files.
+    # let you rebuild the visualisation on the 10k-node version.
+    # saves both directed and undirected GEXF files.
     directed_gexf = graphs_dir / "enron_10000_directed.gexf"
     undirected_gexf = graphs_dir / "enron_10000_undirected.gexf"
 
@@ -387,8 +369,8 @@ if __name__ == "__main__":
     print("Saved undirected GEXF to:", undirected_gexf)
 
     # Step 11: Save summary file.
-    # PURPOSE: keep the key numbers together for your slides and paper notes.
-    # WHAT IT IS DOING: writes the Task 1 setup and results to a plain text file.
+    # keep the key numbers together for your slides and paper notes.
+    # writes the Task 1 setup and results to a plain text file.
     summary_file = OUTPUT_DIR / "task1_redo_summary.txt"
     save_summary(
         G_full=G_full,
