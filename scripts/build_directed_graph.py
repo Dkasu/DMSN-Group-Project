@@ -6,6 +6,7 @@ import matplotlib
 matplotlib.use("Agg")  # save plots without opening a GUI window.
 import matplotlib.pyplot as plt
 import networkx as nx
+import community as community_louvain
 
 
 
