@@ -6,7 +6,7 @@ import matplotlib
 matplotlib.use("Agg")  # save plots without opening a GUI window.
 import matplotlib.pyplot as plt
 import networkx as nx
-
+import community as community_louvain
 
 
 EDGE_FILE = Path("data/email-Enron.txt")
@@ -375,3 +375,108 @@ if __name__ == "__main__":
 
     print("Saved summary to:", summary_file)
     print("\nDone.")
+
+    ## task 2 ##
+
+    # use the same filtered graph from Task 1 for broker analysis.
+    # analyses the final ~10k-node graph rather than the full raw graph.
+    G_task2 = G_analysis_undirected
+
+    # betweenness centrality
+    print("\nComputing Task 2 betweenness centrality...")
+    k = min(10000, G_task2.number_of_nodes())  # approximation for speed
+    betweenness_task2 = nx.betweenness_centrality(G_task2, k=k, seed=42)
+
+    # degree
+    degree_task2 = dict(G_task2.degree())
+
+    # closeness
+    print("Computing Task 2 closeness centrality...")
+    closeness_task2 = nx.closeness_centrality(G_task2)
+
+    # top 10 betweenness nodes
+    top_brokers = sorted(betweenness_task2.items(), key=lambda x: x[1], reverse=True)[:10]
+
+    print("\nTop broker candidates (by betweenness):")
+    for node, score in top_brokers:
+        print(f"Node {node} | Betweenness: {score:.4f} | Degree: {degree_task2[node]}")
+
+    # simple broker classification
+    print("\nBroker classification (betweenness vs degree):")
+    for node, b in top_brokers:
+        d = degree_task2[node]
+
+        if d > 300:
+            label = "Likely hub / routine bridge"
+        else:
+            label = "Potential handler-like intermediary"
+
+        print(f"Node {node}: Degree={d}, Betweenness={b:.4f} -> {label}")
+
+    # louvain communities
+    print("\nDetecting communities with Louvain...")
+    partition = community_louvain.best_partition(G_task2)
+
+    print("\nBroker positions relative to communities:")
+    for node, _ in top_brokers:
+        neighbours = list(G_task2.neighbors(node))
+        neighbour_communities = set(partition[n] for n in neighbours if n in partition)
+
+        print(f"Node {node} connects {len(neighbour_communities)} communities")
+
+    # look for more strategic broker candidates rather than obvious global hubs.
+    # filters the top betweenness nodes to find nodes with strong betweenness
+    # but less extreme degree, which may better match handler-like intermediary positions.
+
+    print("\nSearching for more handler-like broker candidates...")
+
+    # step 1: take a wider broker pool
+    top_100_betweenness = sorted(
+        betweenness_task2.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )[:100]
+
+    # step 2: inspect the degree distribution of those nodes
+    top_100_degrees = [degree_task2[node] for node, _ in top_100_betweenness]
+
+    print("\nTop 100 betweenness degree summary:")
+    print("Min degree:", min(top_100_degrees))
+    print("Max degree:", max(top_100_degrees))
+    print("Median degree:", sorted(top_100_degrees)[len(top_100_degrees) // 2])
+
+    # step 3: choose a degree cutoff to remove the biggest hubs
+    # you can adjust this after seeing the summary.
+    HUB_DEGREE_CUTOFF = 500
+
+    # step 4: keep high-betweenness nodes with lower degree
+    filtered_candidates = []
+    for node, b in top_100_betweenness:
+        d = degree_task2[node]
+        if d < HUB_DEGREE_CUTOFF:
+            neighbours = list(G_task2.neighbors(node))
+            neighbour_communities = set(partition[n] for n in neighbours if n in partition)
+            communities_connected = len(neighbour_communities)
+
+            # create a simple score favouring high betweenness and broad community reach,
+            # while penalising very high degree.
+            # pushes more "strategic" connectors upwards.
+            broker_score = b * communities_connected / d
+
+            filtered_candidates.append(
+                (node, b, d, communities_connected, broker_score)
+            )
+
+    # step 5: rank the filtered candidates
+    filtered_candidates = sorted(
+        filtered_candidates,
+        key=lambda x: x[4],
+        reverse=True
+    )
+
+    print("\nPotential handler-like intermediary candidates:")
+    for node, b, d, c, score in filtered_candidates[:10]:
+        print(
+            f"Node {node} | Betweenness: {b:.4f} | Degree: {d} | "
+            f"Communities connected: {c} | Broker score: {score:.6f}"
+        )
