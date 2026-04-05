@@ -6,7 +6,7 @@ import matplotlib
 matplotlib.use("Agg")  # save plots without opening a GUI window.
 import matplotlib.pyplot as plt
 import networkx as nx
-import community as community_louvain
+
 
 
 EDGE_FILE = Path("data/email-Enron.txt")
@@ -374,7 +374,6 @@ if __name__ == "__main__":
     )
 
     print("Saved summary to:", summary_file)
-    print("\nDone.")
 
     ## task 2 ##
 
@@ -480,3 +479,5 @@ if __name__ == "__main__":
             f"Node {node} | Betweenness: {b:.4f} | Degree: {d} | "
             f"Communities connected: {c} | Broker score: {score:.6f}"
         )
+
+    print("\nDone.")
