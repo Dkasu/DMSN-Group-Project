@@ -1,0 +1,13 @@
+TASK 3 RANDOM BASELINE COMPARISON
+================================
+
+Real graph nodes (undirected): 10812
+Real graph edges (undirected): 133696
+
+Real clustering coefficient: 0.5531927212612238
+Random clustering coefficient: 0.002299460941514382
+
+Real average shortest path length: 3.3791682831639975
+Random average shortest path length: 3.192649232689482
+
+Degree distribution comparison saved as log-log plots.

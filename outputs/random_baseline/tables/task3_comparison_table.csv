@@ -1,0 +1,3 @@
+metric,real_graph,random_graph
+average_clustering_coefficient,0.5531927212612238,0.002299460941514382
+average_shortest_path_length,3.3791682831639975,3.192649232689482
